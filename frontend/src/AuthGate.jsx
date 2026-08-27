@@ -197,18 +197,56 @@ export default function AuthGate({ children }) {
   }
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) return undefined;
+
+    let observer = null;
+    let retryTimer = null;
+
     const syncSidebar = () => {
       const footer = document.querySelector(".sidebar-footer");
-      const strong = footer?.querySelector("strong");
-      const span = footer?.querySelector("div:last-child > span");
-      if (strong) strong.textContent = user.name;
-      if (span) span.textContent = user.role;
+      if (!footer) return false;
+
+      const strong = footer.querySelector("strong");
+      const span = footer.querySelector("div:last-child > span");
+
+      // Important: only mutate the DOM when the value actually changed.
+      // Unconditional textContent assignments trigger MutationObserver again
+      // and can lock the browser main thread in an infinite mutation loop.
+      if (strong && strong.textContent !== user.name) {
+        strong.textContent = user.name;
+      }
+      if (span && span.textContent !== user.role) {
+        span.textContent = user.role;
+      }
+      return true;
     };
-    syncSidebar();
-    const observer = new MutationObserver(syncSidebar);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+
+    const attachObserver = () => {
+      const footer = document.querySelector(".sidebar-footer");
+      if (!footer) {
+        retryTimer = window.setTimeout(attachObserver, 50);
+        return;
+      }
+
+      syncSidebar();
+      observer = new MutationObserver(() => {
+        syncSidebar();
+      });
+
+      // Observe only the small footer region, not document.body.
+      observer.observe(footer, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    };
+
+    attachObserver();
+
+    return () => {
+      if (retryTimer) window.clearTimeout(retryTimer);
+      if (observer) observer.disconnect();
+    };
   }, [user]);
 
   if (checking) return <div className="auth-loading">Memeriksa session...</div>;
