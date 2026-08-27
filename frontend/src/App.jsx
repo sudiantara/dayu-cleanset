@@ -28,6 +28,13 @@ function createInitialOrderForm() {
   };
 }
 
+function createInitialCustomerForm() {
+  return {
+    name: "",
+    phone: "",
+  };
+}
+
 function App() {
   const [summary, setSummary] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -35,6 +42,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderForm, setOrderForm] = useState(createInitialOrderForm());
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [customerForm, setCustomerForm] = useState(createInitialCustomerForm());
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
@@ -118,16 +128,78 @@ function App() {
     }));
   }
 
+  function updateCustomerForm(field, value) {
+    setCustomerForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
   function openOrderModal() {
     setOrderForm(createInitialOrderForm());
+    setCustomerForm(createInitialCustomerForm());
+    setQuickCustomerOpen(false);
     setFormError("");
     setFormSuccess("");
     setOrderModalOpen(true);
   }
 
   function closeOrderModal() {
-    if (submitting) return;
+    if (submitting || creatingCustomer) return;
     setOrderModalOpen(false);
+  }
+
+  async function createQuickCustomer() {
+    setFormError("");
+    setFormSuccess("");
+
+    const name = customerForm.name.trim();
+    const phone = customerForm.phone.trim();
+
+    if (!name) {
+      setFormError("Nama customer wajib diisi.");
+      return;
+    }
+
+    if (!phone) {
+      setFormError("Nomor WhatsApp / HP wajib diisi.");
+      return;
+    }
+
+    setCreatingCustomer(true);
+
+    try {
+      const response = await fetch("/api/customers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          phone,
+          address: null,
+          notes: "Dibuat dari Quick Customer pada Order Baru",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail || "Gagal membuat customer.");
+      }
+
+      const newCustomer = data.customer;
+
+      setCustomers((current) => [...current, newCustomer]);
+      updateOrderForm("customer_id", String(newCustomer.id));
+      setCustomerForm(createInitialCustomerForm());
+      setQuickCustomerOpen(false);
+      setFormSuccess(`Customer ${newCustomer.name} berhasil dibuat dan dipilih.`);
+    } catch (error) {
+      setFormError(error.message || "Terjadi kesalahan saat membuat customer.");
+    } finally {
+      setCreatingCustomer(false);
+    }
   }
 
   async function submitOrder(event) {
@@ -437,7 +509,7 @@ function App() {
                 type="button"
                 className="icon-button"
                 onClick={closeOrderModal}
-                disabled={submitting}
+                disabled={submitting || creatingCustomer}
               >
                 ×
               </button>
@@ -469,10 +541,61 @@ function App() {
                           </option>
                         ))}
                       </select>
-                      <small>
-                        Customer baru akan ditambahkan pada tahap quick-customer berikutnya.
-                      </small>
                     </label>
+
+                    <div className="field field-full">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => {
+                          setFormError("");
+                          setFormSuccess("");
+                          setQuickCustomerOpen((current) => !current);
+                        }}
+                        disabled={creatingCustomer}
+                      >
+                        {quickCustomerOpen ? "Tutup Customer Baru" : "+ Customer Baru"}
+                      </button>
+                    </div>
+
+                    {quickCustomerOpen && (
+                      <>
+                        <label className="field">
+                          <span>Nama Customer *</span>
+                          <input
+                            value={customerForm.name}
+                            onChange={(event) =>
+                              updateCustomerForm("name", event.target.value)
+                            }
+                            placeholder="Contoh: John Smith"
+                          />
+                        </label>
+
+                        <label className="field">
+                          <span>WhatsApp / No. HP *</span>
+                          <input
+                            value={customerForm.phone}
+                            onChange={(event) =>
+                              updateCustomerForm("phone", event.target.value)
+                            }
+                            placeholder="Contoh: +61412345678"
+                          />
+                        </label>
+
+                        <div className="field field-full">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={createQuickCustomer}
+                            disabled={creatingCustomer}
+                          >
+                            {creatingCustomer
+                              ? "Menyimpan Customer..."
+                              : "Simpan & Pilih Customer"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </section>
 
@@ -737,14 +860,14 @@ function App() {
                   type="button"
                   className="secondary-button"
                   onClick={closeOrderModal}
-                  disabled={submitting}
+                  disabled={submitting || creatingCustomer}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   className="primary-button"
-                  disabled={submitting}
+                  disabled={submitting || creatingCustomer}
                 >
                   {submitting ? "Menyimpan..." : "Simpan Order"}
                 </button>
