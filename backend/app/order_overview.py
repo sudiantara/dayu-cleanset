@@ -36,9 +36,13 @@ def get_order_overview_v2(order_number: str):
                         o.notes,
                         o.created_at,
                         o.updated_at,
-                        o.completed_at
+                        o.completed_at,
+                        u_created.id,
+                        u_created.name,
+                        u_created.role
                     FROM orders o
                     JOIN customers c ON c.id = o.customer_id
+                    LEFT JOIN users u_created ON u_created.id = o.created_by
                     WHERE o.order_number = %s
                     """,
                     (order_number,)
@@ -117,6 +121,12 @@ def get_order_overview_v2(order_number: str):
             "id": order_id,
             "order_number": row[1],
             "customer": {"id": row[2], "name": row[3], "phone": row[4]},
+            "receiver": {
+                "user_id": row[25],
+                "name": row[26] or "System",
+                "role": row[27],
+                "received_at": row[22].isoformat(),
+            },
             "location": {
                 "hotel_name": row[5],
                 "room_number": row[6],
