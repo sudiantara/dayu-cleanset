@@ -27,7 +27,7 @@ function installCustomerSearch(modal) {
     <div class="customer-search-input-wrap">
       <span class="customer-search-icon">⌕</span>
       <input class="customer-search-input" type="search" autocomplete="off" placeholder="Cari nama / nomor WhatsApp..." />
-      <button class="customer-search-clear" type="button" title="Hapus pilihan">×</button>
+      <button class="customer-search-clear" type="button" title="Tutup pencarian">×</button>
     </div>
     <div class="customer-selected-card" hidden></div>
     <div class="customer-search-results" hidden></div>
@@ -59,24 +59,29 @@ function installCustomerSearch(modal) {
     select.dispatchEvent(new Event("change", { bubbles: true }));
     input.value = "";
     results.hidden = true;
+    input.blur();
     selectedCard.hidden = false;
     selectedCard.innerHTML = `
       <div>
         <strong>${customer.name}</strong>
         <span>${customer.phone || "Tanpa nomor"}</span>
       </div>
-      <span class="customer-selected-check">✓ Dipilih</span>
+      <button type="button" class="customer-change-button">Ganti</button>
     `;
+    selectedCard.querySelector(".customer-change-button")?.addEventListener("click", () => {
+      select.value = "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      selectedCard.hidden = true;
+      input.value = "";
+      input.focus();
+      renderResults("");
+    });
   }
 
-  function clearCustomer() {
-    select.value = "";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-    selectedCard.hidden = true;
-    selectedCard.innerHTML = "";
+  function closeSearch() {
     input.value = "";
-    input.focus();
-    renderResults("");
+    results.hidden = true;
+    input.blur();
   }
 
   function renderResults(query) {
@@ -117,7 +122,10 @@ function installCustomerSearch(modal) {
 
   input.addEventListener("focus", () => renderResults(input.value));
   input.addEventListener("input", () => renderResults(input.value));
-  clearButton.addEventListener("click", clearCustomer);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeSearch();
+  });
+  clearButton.addEventListener("click", closeSearch);
 
   document.addEventListener("mousedown", (event) => {
     if (!wrapper.contains(event.target)) results.hidden = true;
