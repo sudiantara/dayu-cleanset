@@ -32,6 +32,18 @@ export function printInvoice58(detail) {
     throw new Error("Popup diblokir browser. Izinkan popup untuk print invoice.");
   }
 
+  const promoRow = Number(detail.promo?.promo_discount || 0) > 0
+    ? `<div class="row"><span>Promo 5%</span><strong>- ${escapeHtml(money(detail.promo.promo_discount))}</strong></div>`
+    : "";
+
+  const negotiatedDiscountRow = Number(detail.promo?.special_discount || 0) > 0
+    ? `<div class="row"><span>Diskon Nego</span><strong>- ${escapeHtml(money(detail.promo.special_discount))}</strong></div>`
+    : "";
+
+  const negotiatedReasonRow = Number(detail.promo?.special_discount || 0) > 0 && detail.promo?.special_discount_reason
+    ? `<div class="wrap">Alasan diskon: ${escapeHtml(detail.promo.special_discount_reason)}</div>`
+    : "";
+
   const html = `<!doctype html>
 <html>
 <head>
@@ -48,7 +60,7 @@ h1 { font-size: 15px; margin: 0 0 2px; }
 .row { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
 .row span:first-child { flex: 1; }
 .row strong { text-align: right; }
-.wrap { word-break: break-word; }
+.wrap { word-break: break-word; margin: 3px 0; }
 .total { font-size: 12px; font-weight: 700; }
 .footer { margin-top: 10px; text-align: center; font-size: 9px; }
 </style>
@@ -75,8 +87,9 @@ h1 { font-size: 15px; margin: 0 0 2px; }
 
   <div class="sep"></div>
   <div class="row"><span>Subtotal</span><strong>${escapeHtml(money(detail.billing.subtotal))}</strong></div>
-  <div class="row"><span>Promo 5%</span><strong>- ${escapeHtml(money(detail.promo.promo_discount))}</strong></div>
-  <div class="row"><span>Diskon Nego</span><strong>- ${escapeHtml(money(detail.promo.special_discount))}</strong></div>
+  ${promoRow}
+  ${negotiatedDiscountRow}
+  ${negotiatedReasonRow}
   <div class="row total"><span>TOTAL</span><strong>${escapeHtml(money(detail.billing.total))}</strong></div>
   <div class="row"><span>Status Bayar</span><strong>${escapeHtml(detail.billing.payment_status)}</strong></div>
   <div class="row"><span>Sisa</span><strong>${escapeHtml(money(detail.billing.remaining_amount))}</strong></div>
