@@ -55,7 +55,7 @@ function OrderDetailModal({ orderNumber, onClose }) {
     async function loadDetail() {
       try {
         const response = await fetch(
-          `/api/orders/${encodeURIComponent(orderNumber)}/overview`,
+          `/api/orders/${encodeURIComponent(orderNumber)}/overview-v2`,
         );
         const data = await response.json();
 
@@ -156,34 +156,13 @@ function OrderDetailModal({ orderNumber, onClose }) {
 
               <section className="detail-billing">
                 <h3>Rincian Pembayaran</h3>
-                <div className="billing-line">
-                  <span>Subtotal</span>
-                  <strong>{rupiah(detail.billing.subtotal)}</strong>
-                </div>
-                <div className="billing-line discount">
-                  <span>Promo 5%</span>
-                  <strong>- {rupiah(detail.promo.promo_discount)}</strong>
-                </div>
-                <div className="billing-line discount">
-                  <span>Diskon Nego</span>
-                  <strong>- {rupiah(detail.promo.special_discount)}</strong>
-                </div>
-                <div className="billing-line total-discount">
-                  <span>Total Diskon</span>
-                  <strong>- {rupiah(detail.billing.discount)}</strong>
-                </div>
-                <div className="billing-line grand-total">
-                  <span>Total</span>
-                  <strong>{rupiah(detail.billing.total)}</strong>
-                </div>
-                <div className="billing-line">
-                  <span>Sudah Dibayar</span>
-                  <strong>{rupiah(detail.billing.paid_amount)}</strong>
-                </div>
-                <div className="billing-line remaining">
-                  <span>Sisa</span>
-                  <strong>{rupiah(detail.billing.remaining_amount)}</strong>
-                </div>
+                <div className="billing-line"><span>Subtotal</span><strong>{rupiah(detail.billing.subtotal)}</strong></div>
+                <div className="billing-line discount"><span>Promo 5%</span><strong>- {rupiah(detail.promo.promo_discount)}</strong></div>
+                <div className="billing-line discount"><span>Diskon Nego</span><strong>- {rupiah(detail.promo.special_discount)}</strong></div>
+                <div className="billing-line total-discount"><span>Total Diskon</span><strong>- {rupiah(detail.billing.discount)}</strong></div>
+                <div className="billing-line grand-total"><span>Total</span><strong>{rupiah(detail.billing.total)}</strong></div>
+                <div className="billing-line"><span>Sudah Dibayar</span><strong>{rupiah(detail.billing.paid_amount)}</strong></div>
+                <div className="billing-line remaining"><span>Sisa</span><strong>{rupiah(detail.billing.remaining_amount)}</strong></div>
               </section>
 
               <div className="detail-grid lower-grid">
@@ -199,9 +178,7 @@ function OrderDetailModal({ orderNumber, onClose }) {
                           <div>
                             <strong>{item.status}</strong>
                             <p>{item.note || "-"}</p>
-                            <small>
-                              {formatDate(item.created_at)} · {item.operator || "System"}
-                            </small>
+                            <small>{formatDate(item.created_at)} · {item.operator || "System"}</small>
                           </div>
                         </div>
                       ))}
