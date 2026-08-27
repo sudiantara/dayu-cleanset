@@ -10,28 +10,40 @@ function replaceSelectWithSession(label, caption) {
   label.appendChild(badge);
 }
 
-function enhanceDetailOperations() {
-  const modal = document.querySelector(".detail-modal");
+function hideButtonByText(root, text) {
+  const button = [...root.querySelectorAll("button")].find((item) => item.textContent?.trim() === text);
+  if (button) button.style.display = "none";
+}
+
+function enhanceRoleActions() {
   const user = window.dayuCurrentUser;
-  if (!modal || !user) return;
+  if (!user) return;
 
-  const labels = [...modal.querySelectorAll("label")];
-  labels.forEach((label) => {
-    const text = label.childNodes[0]?.textContent?.trim() || label.textContent?.trim() || "";
-    if (text.startsWith("Operator")) {
-      replaceSelectWithSession(label, "Status akan dicatat atas user yang sedang login.");
-    }
-    if (text.startsWith("Diubah oleh")) {
-      replaceSelectWithSession(label, "Perubahan akan dicatat atas user yang sedang login.");
-    }
-  });
+  const detailModal = document.querySelector(".detail-modal");
+  if (detailModal) {
+    const labels = [...detailModal.querySelectorAll("label")];
+    labels.forEach((label) => {
+      const text = label.childNodes[0]?.textContent?.trim() || label.textContent?.trim() || "";
+      if (text.startsWith("Operator")) {
+        replaceSelectWithSession(label, "Status akan dicatat atas user yang sedang login.");
+      }
+      if (text.startsWith("Diubah oleh")) {
+        replaceSelectWithSession(label, "Perubahan akan dicatat atas user yang sedang login.");
+      }
+    });
 
-  const deleteButton = [...modal.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Delete");
-  if (deleteButton && user.role !== "ADMIN") deleteButton.style.display = "none";
+    if (user.role !== "ADMIN") hideButtonByText(detailModal, "Delete");
+    if (user.role === "STAFF") hideButtonByText(detailModal, "Edit Order");
+  }
+
+  if (user.role === "STAFF") {
+    const newOrderButton = [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "+ Order Baru");
+    if (newOrderButton) newOrderButton.style.display = "none";
+  }
 }
 
 export function installAuthUiEnhancer() {
-  const observer = new MutationObserver(enhanceDetailOperations);
+  const observer = new MutationObserver(enhanceRoleActions);
   observer.observe(document.body, { childList: true, subtree: true });
-  enhanceDetailOperations();
+  enhanceRoleActions();
 }
