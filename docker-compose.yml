@@ -1,0 +1,62 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dayu-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - dayu_postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - dayu-internal
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: dayu-backend
+    restart: unless-stopped
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+
+    depends_on:
+      - postgres
+
+    networks:
+      - proxy-network
+      - dayu-internal
+
+
+  frontend:
+    build:
+      context: ./frontend
+
+    container_name: dayu-frontend
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    networks:
+      - proxy-network
+
+
+
+volumes:
+  dayu_postgres_data:
+
+networks:
+  proxy-network:
+    external: true
+
+  dayu-internal:
+    driver: bridge
+
