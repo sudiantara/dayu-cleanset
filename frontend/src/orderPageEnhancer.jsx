@@ -1,10 +1,11 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import OrderListPage from "./OrderListPage.jsx";
+import { CustomerPage, ServicePage, PaymentPage } from "./OperationsPages.jsx";
 
 let root = null;
 let host = null;
-let active = false;
+let activePage = "Dashboard";
 
 function menuButtons() {
   return [...document.querySelectorAll(".menu .menu-item")];
@@ -16,60 +17,61 @@ function findMenu(label) {
 
 function setActiveMenu(label) {
   menuButtons().forEach((button) => {
-    const isActive = button.textContent?.trim().endsWith(label);
-    button.classList.toggle("active", isActive);
+    button.classList.toggle("active", button.textContent?.trim().endsWith(label));
   });
 }
 
-function openOrderPage() {
+function ensureHost() {
   const main = document.querySelector(".main-content");
-  if (!main) return;
-
-  active = true;
-  main.style.display = "none";
-  setActiveMenu("Order");
-
+  if (!main) return null;
   if (!host) {
     host = document.createElement("div");
-    host.id = "order-list-host";
+    host.id = "workspace-host";
     main.parentNode.insertBefore(host, main.nextSibling);
     root = createRoot(host);
   }
-
-  host.style.display = "block";
-  root.render(
-    <OrderListPage
-      onNewOrder={() => {
-        const dashboardNewOrder = document.querySelector(".main-content .primary-button");
-        dashboardNewOrder?.click();
-      }}
-    />,
-  );
+  return main;
 }
 
 function openDashboard() {
-  const main = document.querySelector(".main-content");
-  active = false;
+  const main = ensureHost();
+  activePage = "Dashboard";
   if (host) host.style.display = "none";
   if (main) main.style.display = "block";
   setActiveMenu("Dashboard");
 }
 
+function openWorkspace(label) {
+  const main = ensureHost();
+  if (!main || !root) return;
+  activePage = label;
+  main.style.display = "none";
+  host.style.display = "block";
+  setActiveMenu(label);
+
+  const onNewOrder = () => {
+    const dashboardNewOrder = document.querySelector(".main-content .primary-button");
+    dashboardNewOrder?.click();
+  };
+
+  if (label === "Order") root.render(<OrderListPage onNewOrder={onNewOrder} />);
+  if (label === "Customer") root.render(<CustomerPage />);
+  if (label === "Service") root.render(<ServicePage />);
+  if (label === "Pembayaran") root.render(<PaymentPage />);
+}
+
 function bindNavigation() {
-  const orderButton = findMenu("Order");
-  const dashboardButton = findMenu("Dashboard");
-
-  if (orderButton && orderButton.dataset.orderPageBound !== "1") {
-    orderButton.dataset.orderPageBound = "1";
-    orderButton.addEventListener("click", openOrderPage);
-  }
-
-  if (dashboardButton && dashboardButton.dataset.orderPageBound !== "1") {
-    dashboardButton.dataset.orderPageBound = "1";
-    dashboardButton.addEventListener("click", openDashboard);
-  }
-
-  if (active) setActiveMenu("Order");
+  const labels = ["Dashboard", "Order", "Customer", "Service", "Pembayaran"];
+  labels.forEach((label) => {
+    const button = findMenu(label);
+    if (!button || button.dataset.workspaceBound === "1") return;
+    button.dataset.workspaceBound = "1";
+    button.addEventListener("click", () => {
+      if (label === "Dashboard") openDashboard();
+      else openWorkspace(label);
+    });
+  });
+  setActiveMenu(activePage);
 }
 
 export function installOrderPageEnhancer() {
