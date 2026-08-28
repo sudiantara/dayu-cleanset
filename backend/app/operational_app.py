@@ -7,27 +7,95 @@ from app.main import get_db_connection
 from app.auth_app import COOKIE_NAME, _load_active_user, parse_session_token
 
 
+STATUS_TRANSITIONS = {
+    "NEW": {"RECEIVED"},
+    "RECEIVED": {"WASHING"},
+    "WASHING": {"READY"},
+    # Legacy statuses are retained only so old active orders can move forward.
+    "DRYING": {"READY"},
+    "IRONING": {"READY"},
+    # READY can finish at the counter or move into delivery first.
+    "READY": {"DELIVERING", "COMPLETE"},
+    "DELIVERING": {"COMPLETE"},
+    # Terminal states cannot be changed again.
+    "COMPLETE": set(),
+    "PICKED_UP": set(),
+    "CANCELLED": set(),
+}
+
+
 @app.middleware("http")
 async def operational_auth_middleware(request: Request, call_next):
-    if not request.url.path.startswith("/api/operational-control"):
-        return await call_next(request)
+    path = request.url.path
 
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return Response(
-            content=json.dumps({"detail": "Silakan login"}),
-            status_code=401,
-            media_type="application/json",
-        )
-    try:
-        user = _load_active_user(int(parse_session_token(token)["uid"]))
-    except Exception:
-        return Response(
-            content=json.dumps({"detail": "Sesi login tidak valid"}),
-            status_code=401,
-            media_type="application/json",
-        )
-    request.state.operational_user = user
+    if path.startswith("/api/operational-control"):
+        token = request.cookies.get(COOKIE_NAME)
+        if not token:
+            return Response(
+                content=json.dumps({"detail": "Silakan login"}),
+                status_code=401,
+                media_type="application/json",
+            )
+        try:
+            user = _load_active_user(int(parse_session_token(token)["uid"]))
+        except Exception:
+            return Response(
+                content=json.dumps({"detail": "Sesi login tidak valid"}),
+                status_code=401,
+                media_type="application/json",
+            )
+        request.state.operational_user = user
+
+    # Enforce the simplified forward-only status workflow before the existing
+    # status-v2 handler is reached. This also protects direct API calls.
+    if request.method.upper() == "PATCH" and path.startswith("/api/orders/") and path.endswith("/status-v2"):
+        try:
+            payload = json.loads((await request.body()).decode("utf-8") or "{}")
+        except Exception:
+            return Response(
+                content=json.dumps({"detail": "Payload status tidak valid"}),
+                status_code=400,
+                media_type="application/json",
+            )
+
+        requested_status = str(payload.get("status") or "").upper().strip()
+        order_number = path[len("/api/orders/"):-len("/status-v2")].strip("/")
+
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT status FROM orders WHERE order_number = %s",
+                    (order_number,),
+                )
+                row = cursor.fetchone()
+
+        if not row:
+            return Response(
+                content=json.dumps({"detail": "Order tidak ditemukan"}),
+                status_code=404,
+                media_type="application/json",
+            )
+
+        current_status = str(row[0] or "").upper().strip()
+        allowed = STATUS_TRANSITIONS.get(current_status, set())
+
+        if current_status in {"COMPLETE", "PICKED_UP", "CANCELLED"}:
+            return Response(
+                content=json.dumps({"detail": f"Order status {current_status} sudah final dan tidak dapat diubah"}),
+                status_code=409,
+                media_type="application/json",
+            )
+
+        if requested_status not in allowed:
+            allowed_text = ", ".join(sorted(allowed)) or "tidak ada"
+            return Response(
+                content=json.dumps({
+                    "detail": f"Status tidak boleh mundur atau melompati proses. Dari {current_status} hanya boleh ke: {allowed_text}"
+                }),
+                status_code=409,
+                media_type="application/json",
+            )
+
     return await call_next(request)
 
 
