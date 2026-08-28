@@ -1,14 +1,56 @@
+import json
+
+from fastapi import Request, Response
+
 from app.secured_app import app
 from app.main import get_db_connection
+from app.auth_app import COOKIE_NAME, _load_active_user, parse_session_token
+
+
+FINANCE_PREFIXES = (
+    "/api/business-dashboard",
+    "/api/finance-report",
+    "/api/expenses",
+)
+
+
+@app.middleware("http")
+async def finance_admin_only_middleware(request: Request, call_next):
+    """Finance data is private to ADMIN for every HTTP method."""
+    if not request.url.path.startswith(FINANCE_PREFIXES):
+        return await call_next(request)
+
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return Response(
+            content=json.dumps({"detail": "Silakan login"}),
+            status_code=401,
+            media_type="application/json",
+        )
+
+    try:
+        payload = parse_session_token(token)
+        user = _load_active_user(int(payload["uid"]))
+    except Exception:
+        return Response(
+            content=json.dumps({"detail": "Sesi login tidak valid"}),
+            status_code=401,
+            media_type="application/json",
+        )
+
+    if user["role"] != "ADMIN":
+        return Response(
+            content=json.dumps({"detail": "Keuangan hanya dapat diakses ADMIN"}),
+            status_code=403,
+            media_type="application/json",
+        )
+
+    return await call_next(request)
 
 
 @app.get("/api/finance-report-v2")
 def finance_report_v2():
-    """Stable finance reporting endpoint for Step 23C.
-
-    Uses separate grouped queries and fills missing periods in Python to avoid
-    complex PostgreSQL generate_series/USING joins causing report failures.
-    """
+    """Stable finance reporting endpoint for Step 23C."""
     with get_db_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
