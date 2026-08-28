@@ -1,0 +1,130 @@
+.ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+
+.ops-toolbar button,
+.ops-primary {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #344054;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ops-toolbar button:hover {
+  background: #f9fafb;
+}
+
+.ops-toolbar .danger {
+  margin-left: auto;
+  border-color: #fda29b;
+  color: #b42318;
+  background: #fff5f5;
+}
+
+.ops-toolbar button:disabled,
+.ops-primary:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.ops-panel {
+  background: #f8fafc;
+  border: 1px solid #dbe3ed;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.ops-panel h3 {
+  margin: 0 0 14px;
+  color: #344054;
+  font-size: 14px;
+}
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ops-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ops-grid input,
+.ops-grid select {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #101828;
+  outline: none;
+}
+
+.ops-grid input:focus,
+.ops-grid select:focus {
+  border-color: #84adff;
+  box-shadow: 0 0 0 3px #eff4ff;
+}
+
+.ops-grid .ops-full {
+  grid-column: 1 / -1;
+}
+
+.ops-grid .ops-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.ops-grid .ops-check input {
+  width: auto;
+}
+
+.ops-primary {
+  margin-top: 14px;
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.ops-primary:hover {
+  background: #1d4ed8;
+}
+
+.ops-success {
+  padding: 10px 12px;
+  background: #ecfdf3;
+  border: 1px solid #abefc6;
+  color: #027a48;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 760px) {
+  .ops-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-grid .ops-full {
+    grid-column: auto;
+  }
+
+  .ops-toolbar .danger {
+    margin-left: 0;
+  }
+}

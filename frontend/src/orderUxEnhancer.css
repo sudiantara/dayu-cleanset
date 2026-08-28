@@ -1,0 +1,166 @@
+.native-customer-select-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.customer-search {
+  position: relative;
+}
+
+.customer-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 10px;
+}
+
+.customer-search-input-wrap:focus-within {
+  border-color: #84adff;
+  box-shadow: 0 0 0 3px #eff4ff;
+}
+
+.customer-search-icon {
+  color: #667085;
+  font-size: 18px;
+}
+
+.customer-search-input {
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 10px 0 !important;
+  flex: 1;
+}
+
+.customer-search-clear {
+  border: 0;
+  background: transparent;
+  color: #98a2b3;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.customer-search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.14);
+  padding: 6px;
+}
+
+.customer-result-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.customer-result-item:hover {
+  background: #f2f4f7;
+}
+
+.customer-result-name {
+  font-weight: 650;
+  color: #101828;
+}
+
+.customer-result-phone {
+  color: #667085;
+  font-size: 12px;
+}
+
+.customer-search-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  color: #475467;
+}
+
+.customer-search-empty strong {
+  font-size: 12px;
+}
+
+.customer-search-empty span {
+  font-size: 11px;
+  color: #98a2b3;
+}
+
+.customer-selected-card {
+  margin-top: 9px;
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+  border-radius: 9px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.customer-selected-card[hidden] {
+  display: none;
+}
+
+.customer-selected-card strong,
+.customer-selected-card span {
+  display: block;
+}
+
+.customer-selected-card strong {
+  font-size: 12px;
+  color: #101828;
+}
+
+.customer-selected-card div > span {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #667085;
+}
+
+.customer-selected-check {
+  color: #027a48;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.discount-warning {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #fedf89;
+  background: #fffaeb;
+  color: #b54708;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .customer-result-item {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .customer-selected-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
