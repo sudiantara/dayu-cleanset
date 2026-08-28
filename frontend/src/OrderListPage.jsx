@@ -52,7 +52,7 @@ export default function OrderListPage({ onNewOrder }) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/orders");
+      const response = await fetch("/api/orders-list-v2");
       const data = await response.json();
       if (!response.ok) throw new Error(data?.detail || "Gagal mengambil order");
       setOrders(Array.isArray(data) ? data : []);
