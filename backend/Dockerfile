@@ -10,4 +10,4 @@ COPY app ./app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.secured_app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.secured_app_v2:app", "--host", "0.0.0.0", "--port", "8000"]
