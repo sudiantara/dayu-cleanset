@@ -7,6 +7,7 @@ import { installOrderDetailEnhancer } from "./orderDetailEnhancer.jsx";
 import { installOrderUxEnhancer } from "./orderUxEnhancer.js";
 import { installOrderReceiverEnhancer } from "./orderReceiverEnhancer.js";
 import { installAuthUiEnhancer } from "./authUiEnhancer.js";
+import { installOrderPageEnhancer } from "./orderPageEnhancer.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -20,3 +21,4 @@ installOrderDetailEnhancer();
 installOrderUxEnhancer();
 installOrderReceiverEnhancer();
 installAuthUiEnhancer();
+installOrderPageEnhancer();
