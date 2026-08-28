@@ -1,135 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import { OrderDetailTrigger } from "./OrderDetailModal.jsx";
 import "./OrderListPage.css";
+import "./OperationalPage.css";
 
-function rupiah(value) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
-}
+const rp=v=>new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(v)||0);
+const fmt=v=>v?new Date(v).toLocaleString("id-ID",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-";
+const STATUS_OPTIONS=["ALL","NEW","RECEIVED","WASHING","DRYING","IRONING","READY","DELIVERING","COMPLETE","PICKED_UP","CANCELLED"];
+const NEXT={NEW:"RECEIVED",RECEIVED:"WASHING",WASHING:"DRYING",DRYING:"IRONING",IRONING:"READY",READY:"COMPLETE",DELIVERING:"COMPLETE"};
+function deadlineText(o){if(o.deadline_state==="OVERDUE")return `${Math.abs(Math.round(o.minutes_to_target||0))} mnt terlambat`;if(o.deadline_state==="DUE_SOON")return `${Math.max(0,Math.round(o.minutes_to_target||0))} mnt lagi`;if(o.deadline_state==="NO_TARGET")return "Tanpa target";return fmt(o.requested_finish_at)}
 
-function formatDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-const STATUS_OPTIONS = ["ALL", "NEW", "RECEIVED", "WASHING", "DRYING", "IRONING", "READY", "DELIVERING", "COMPLETE", "PICKED_UP", "CANCELLED"];
-
-export default function OrderListPage({ onNewOrder }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("ALL");
-  const [payment, setPayment] = useState("ALL");
-  const [speed, setSpeed] = useState("ALL");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
-
-  async function loadOrders({ silent = false } = {}) {
-    if (!silent) setLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/orders-list-v2");
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Gagal mengambil order");
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (loadError) {
-      setError(loadError.message || "Gagal mengambil order");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }
-
-  useEffect(() => { loadOrders(); }, []);
-
-  useEffect(() => {
-    const refresh = () => loadOrders({ silent: true });
-    window.addEventListener("dayu:orders-changed", refresh);
-    return () => window.removeEventListener("dayu:orders-changed", refresh);
-  }, []);
-
-  useEffect(() => { setPage(1); }, [query, status, payment, speed, dateFrom, dateTo]);
-
-  const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return orders.filter((order) => {
-      const haystack = [order.order_number, order.customer, order.phone, order.hotel_name, order.room_number].filter(Boolean).join(" ").toLowerCase();
-      if (normalizedQuery && !haystack.includes(normalizedQuery)) return false;
-      if (status !== "ALL" && order.status !== status) return false;
-      if (payment !== "ALL" && order.payment_status !== payment) return false;
-      if (speed !== "ALL" && order.service_speed !== speed) return false;
-      if (dateFrom || dateTo) {
-        const created = order.created_at ? new Date(order.created_at) : null;
-        if (!created || Number.isNaN(created.getTime())) return false;
-        if (dateFrom && created < new Date(`${dateFrom}T00:00:00`)) return false;
-        if (dateTo && created > new Date(`${dateTo}T23:59:59`)) return false;
-      }
-      return true;
-    });
-  }, [orders, query, status, payment, speed, dateFrom, dateTo]);
-
-  const totals = useMemo(() => {
-    const totalValue = filtered.reduce((sum, order) => sum + Number(order.total || 0), 0);
-    const active = filtered.filter((order) => !["COMPLETE", "PICKED_UP", "CANCELLED"].includes(order.status)).length;
-    const unpaid = filtered.filter((order) => order.payment_status !== "PAID").length;
-    return { totalValue, active, unpaid };
-  }, [filtered]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  function resetFilters() {
-    setQuery(""); setStatus("ALL"); setPayment("ALL"); setSpeed("ALL"); setDateFrom(""); setDateTo("");
-  }
-
-  return (
-    <div className="order-list-page">
-      <header className="order-page-header">
-        <div><h1>Order</h1><p>Kelola dan cari seluruh order laundry.</p></div>
-        <button className="order-new-button" type="button" onClick={onNewOrder}>+ Order Baru</button>
-      </header>
-
-      <section className="order-stats">
-        <div><span>Total hasil</span><strong>{filtered.length}</strong></div>
-        <div><span>Laundry aktif</span><strong>{totals.active}</strong></div>
-        <div><span>Belum lunas</span><strong>{totals.unpaid}</strong></div>
-        <div><span>Nilai order</span><strong>{rupiah(totals.totalValue)}</strong></div>
-      </section>
-
-      <section className="order-panel">
-        <div className="order-filter-grid">
-          <label className="order-search-field"><span>Cari</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="No. order, customer, HP, hotel, room..." /></label>
-          <label><span>Status Laundry</span><select value={status} onChange={(e) => setStatus(e.target.value)}>{STATUS_OPTIONS.map((item) => <option key={item} value={item}>{item === "ALL" ? "Semua Status" : item}</option>)}</select></label>
-          <label><span>Pembayaran</span><select value={payment} onChange={(e) => setPayment(e.target.value)}><option value="ALL">Semua Pembayaran</option><option value="UNPAID">UNPAID</option><option value="PARTIAL">PARTIAL</option><option value="PAID">PAID</option></select></label>
-          <label><span>Service</span><select value={speed} onChange={(e) => setSpeed(e.target.value)}><option value="ALL">Semua Service</option><option value="NORMAL">NORMAL</option><option value="EXPRESS">EXPRESS</option></select></label>
-          <label><span>Dari Tanggal</span><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
-          <label><span>Sampai Tanggal</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></label>
-          <button type="button" className="order-reset-button" onClick={resetFilters}>Reset Filter</button>
-        </div>
-
-        {error && <div className="order-error">{error}</div>}
-        {loading ? <div className="order-loading">Memuat semua order...</div> : <>
-          <div className="order-table-wrap"><table className="order-full-table">
-            <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Berat</th><th>Status</th><th>Pembayaran</th><th>Total</th><th>Dibuat</th></tr></thead>
-            <tbody>
-              {pageRows.map((order) => <tr key={order.order_number}>
-                <td><OrderDetailTrigger orderNumber={order.order_number} onChanged={() => loadOrders({ silent: true })} /></td>
-                <td><strong>{order.customer || "-"}</strong><small>{order.phone || ""}</small></td>
-                <td>{order.service_speed || "-"}</td><td>{Number(order.total_weight || 0)} KG</td>
-                <td><span className={`order-pill status-${String(order.status || "").toLowerCase()}`}>{order.status}</span></td>
-                <td><span className={`order-pill payment-${String(order.payment_status || "").toLowerCase()}`}>{order.payment_status}</span></td>
-                <td><strong>{rupiah(order.total)}</strong></td><td>{formatDate(order.created_at)}</td>
-              </tr>)}
-              {pageRows.length === 0 && <tr><td colSpan="8" className="order-empty">Tidak ada order yang cocok dengan filter.</td></tr>}
-            </tbody>
-          </table></div>
-          <div className="order-pagination"><span>Menampilkan {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, filtered.length)} dari {filtered.length} order</span><div>
-            <button type="button" disabled={currentPage <= 1} onClick={() => setPage((v) => Math.max(1, v - 1))}>← Sebelumnya</button><strong>{currentPage} / {totalPages}</strong><button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((v) => Math.min(totalPages, v + 1))}>Berikutnya →</button>
-          </div></div>
-        </>}
-      </section>
-    </div>
-  );
+export default function OrderListPage({onNewOrder}){
+ const user=window.dayuCurrentUser;const [orders,setOrders]=useState([]),[ops,setOps]=useState({summary:{},orders:[]}),[loading,setLoading]=useState(true),[error,setError]=useState("");const [query,setQuery]=useState(""),[status,setStatus]=useState("ALL"),[payment,setPayment]=useState("ALL"),[speed,setSpeed]=useState("ALL"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[priority,setPriority]=useState("ALL"),[page,setPage]=useState(1);const pageSize=10;
+ async function load({silent=false}={}){if(!silent)setLoading(true);setError("");try{const [a,b]=await Promise.all([fetch("/api/orders-list-v2"),fetch("/api/operational-control-v1")]);const [ad,bd]=await Promise.all([a.json(),b.json()]);if(!a.ok)throw new Error(ad.detail||"Gagal mengambil order");if(!b.ok)throw new Error(bd.detail||"Gagal mengambil kontrol operasional");setOrders(Array.isArray(ad)?ad:[]);setOps(bd||{summary:{},orders:[]})}catch(e){setError(e.message||"Gagal mengambil data order")}finally{if(!silent)setLoading(false)}}
+ useEffect(()=>{load();const r=()=>load({silent:true});window.addEventListener("dayu:orders-changed",r);const t=setInterval(r,60000);return()=>{window.removeEventListener("dayu:orders-changed",r);clearInterval(t)}},[]);
+ const opsMap=useMemo(()=>Object.fromEntries((ops.orders||[]).map(o=>[o.order_number,o])),[ops]);
+ useEffect(()=>{setPage(1)},[query,status,payment,speed,dateFrom,dateTo,priority]);
+ const filtered=useMemo(()=>{const q=query.trim().toLowerCase();return orders.filter(o=>{const m=opsMap[o.order_number];const hay=[o.order_number,o.customer,o.phone,o.hotel_name,o.room_number].filter(Boolean).join(" ").toLowerCase();if(q&&!hay.includes(q))return false;if(status!=="ALL"&&o.status!==status)return false;if(payment!=="ALL"&&o.payment_status!==payment)return false;if(speed!=="ALL"&&o.service_speed!==speed)return false;if(dateFrom||dateTo){const d=o.created_at?new Date(o.created_at):null;if(!d||Number.isNaN(d.getTime()))return false;if(dateFrom&&d<new Date(`${dateFrom}T00:00:00`))return false;if(dateTo&&d>new Date(`${dateTo}T23:59:59`))return false;}if(priority==="OVERDUE"&&m?.deadline_state!=="OVERDUE")return false;if(priority==="DUE_SOON"&&m?.deadline_state!=="DUE_SOON")return false;if(priority==="READY"&&o.status!=="READY")return false;if(priority==="UNPAID"&&o.payment_status==="PAID")return false;if(priority==="EXPRESS"&&o.service_speed!=="EXPRESS")return false;return true})},[orders,opsMap,query,status,payment,speed,dateFrom,dateTo,priority]);
+ const totals=useMemo(()=>({totalValue:filtered.reduce((s,o)=>s+Number(o.total||0),0),active:filtered.filter(o=>!["COMPLETE","PICKED_UP","CANCELLED"].includes(o.status)).length,unpaid:filtered.filter(o=>o.payment_status!=="PAID").length}),[filtered]);
+ const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize)),currentPage=Math.min(page,totalPages),rows=filtered.slice((currentPage-1)*pageSize,currentPage*pageSize);
+ function reset(){setQuery("");setStatus("ALL");setPayment("ALL");setSpeed("ALL");setDateFrom("");setDateTo("");setPriority("ALL")}
+ async function quickStatus(order,newStatus){if(!newStatus)return;try{const r=await fetch(`/api/orders/${order.order_number}/status-v2`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:newStatus,note:"Update dari halaman Order",changed_by:user?.id||1})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Gagal update status");window.dispatchEvent(new CustomEvent("dayu:orders-changed"));await load({silent:true})}catch(e){setError(e.message)}}
+ const s=ops.summary||{};const cards=[["Aktif",s.active||0,"ALL"],["Terlambat",s.overdue||0,"OVERDUE"],["≤ 3 Jam",s.due_soon||0,"DUE_SOON"],["Siap Pickup",s.ready||0,"READY"],["Belum Lunas",s.unpaid||0,"UNPAID"],["Express",s.express||0,"EXPRESS"]];
+ return <div className="order-list-page"><header className="order-page-header"><div><h1>Order</h1><p>Pusat order, SLA, prioritas kerja dan tindak lanjut laundry.</p></div><div className="order-header-actions"><button type="button" className="order-reset-button" onClick={()=>load()}>↻ Refresh</button><button className="order-new-button" type="button" onClick={onNewOrder}>+ Order Baru</button></div></header>
+ <div className="ops-stats order-ops-stats">{cards.map(([label,val,key])=><button key={key} className={priority===key?"active":""} onClick={()=>setPriority(key)}><span>{label}</span><strong>{val}</strong></button>)}</div>
+ <section className="order-stats"><div><span>Total hasil</span><strong>{filtered.length}</strong></div><div><span>Laundry aktif</span><strong>{totals.active}</strong></div><div><span>Belum lunas</span><strong>{totals.unpaid}</strong></div><div><span>Nilai order</span><strong>{rp(totals.totalValue)}</strong></div></section>
+ <section className="order-panel"><div className="order-filter-grid"><label className="order-search-field"><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="No. order, customer, HP, hotel, room..."/></label><label><span>Status Laundry</span><select value={status} onChange={e=>setStatus(e.target.value)}>{STATUS_OPTIONS.map(x=><option key={x} value={x}>{x==="ALL"?"Semua Status":x}</option>)}</select></label><label><span>Pembayaran</span><select value={payment} onChange={e=>setPayment(e.target.value)}><option value="ALL">Semua Pembayaran</option><option value="UNPAID">UNPAID</option><option value="PARTIAL">PARTIAL</option><option value="PAID">PAID</option></select></label><label><span>Service</span><select value={speed} onChange={e=>setSpeed(e.target.value)}><option value="ALL">Semua Service</option><option>NORMAL</option><option>EXPRESS</option></select></label><label><span>Dari Tanggal</span><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/></label><label><span>Sampai Tanggal</span><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></label><button type="button" className="order-reset-button" onClick={reset}>Reset Filter</button></div>{error&&<div className="order-error">{error}</div>}{loading?<div className="order-loading">Memuat order...</div>:<><div className="order-table-wrap"><table className="order-full-table order-control-table"><thead><tr><th>Prioritas</th><th>Order / Customer</th><th>Lokasi</th><th>Service</th><th>Status</th><th>Target Selesai</th><th>Pembayaran</th><th>Total</th><th>Aksi Cepat</th></tr></thead><tbody>{rows.map(o=>{const m=opsMap[o.order_number]||{};return <tr key={o.order_number} className={`ops-row ${String(m.deadline_state||"").toLowerCase()}`}><td><div className="priority-stack">{o.service_speed==="EXPRESS"&&<span className="priority express">EXPRESS</span>}{m.deadline_state&&<span className={`priority ${String(m.deadline_state).toLowerCase()}`}>{m.deadline_state==="OVERDUE"?"TERLAMBAT":m.deadline_state==="DUE_SOON"?"SEGERA":m.deadline_state==="NO_TARGET"?"NO TARGET":"ON TRACK"}</span>}</div></td><td><OrderDetailTrigger orderNumber={o.order_number} onChanged={()=>load({silent:true})}/><small>{o.customer||"-"} · {o.phone||""}</small></td><td>{o.hotel_name||"-"}<small>{o.room_number?`Kamar ${o.room_number}`:""}</small></td><td>{o.service_speed||"-"}<small>{Number(o.total_weight||0)} KG</small></td><td><span className={`order-pill status-${String(o.status||"").toLowerCase()}`}>{o.status}</span></td><td><strong className={m.deadline_state==="OVERDUE"?"deadline-bad":m.deadline_state==="DUE_SOON"?"deadline-warn":""}>{m.deadline_state?deadlineText(m):fmt(o.requested_finish_at)}</strong></td><td><span className={`order-pill payment-${String(o.payment_status||"").toLowerCase()}`}>{o.payment_status}</span></td><td><strong>{rp(o.total)}</strong></td><td><div className="quick-actions">{NEXT[o.status]&&<button onClick={()=>quickStatus(o,NEXT[o.status])}>→ {NEXT[o.status]}</button>}<select value="" onChange={e=>quickStatus(o,e.target.value)}><option value="">Status...</option>{STATUS_OPTIONS.filter(x=>x!=="ALL"&&x!==o.status).map(x=><option key={x}>{x}</option>)}</select></div></td></tr>})}{!rows.length&&<tr><td colSpan="9" className="order-empty">Tidak ada order yang cocok dengan filter.</td></tr>}</tbody></table></div><div className="order-pagination"><span>Menampilkan {filtered.length===0?0:(currentPage-1)*pageSize+1} - {Math.min(currentPage*pageSize,filtered.length)} dari {filtered.length} order</span><div><button disabled={currentPage<=1} onClick={()=>setPage(v=>Math.max(1,v-1))}>← Sebelumnya</button><strong>{currentPage} / {totalPages}</strong><button disabled={currentPage>=totalPages} onClick={()=>setPage(v=>Math.min(totalPages,v+1))}>Berikutnya →</button></div></div></>}</section></div>
 }
