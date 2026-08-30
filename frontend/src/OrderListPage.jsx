@@ -1,38 +1,184 @@
-import { useEffect,useMemo,useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { OrderDetailTrigger } from "./OrderDetailModal.jsx";
+import { CustomerCommunicationTrigger } from "./CustomerCommunicationModal.jsx";
 import "./OrderListPage.css";
 import "./OperationalPage.css";
 
-const rp=v=>new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(v)||0);
-const fmt=v=>v?new Date(v).toLocaleString("id-ID",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-";
-const STATUS_OPTIONS=["ALL","NEW","RECEIVED","WASHING","READY","PICKED_UP","DELIVERING","COMPLETE"];
-const CLOSED_STATUSES=["COMPLETE","CANCELLED"];
-const STATUS_FLOW={NEW:["RECEIVED"],RECEIVED:["WASHING"],WASHING:["READY"],DRYING:["READY"],IRONING:["READY"],READY:["PICKED_UP","DELIVERING"],PICKED_UP:["COMPLETE"],DELIVERING:["COMPLETE"],COMPLETE:[],CANCELLED:[]};
-const QUICK_NEXT={NEW:"RECEIVED",RECEIVED:"WASHING",WASHING:"READY",DRYING:"READY",IRONING:"READY",PICKED_UP:"COMPLETE",DELIVERING:"COMPLETE"};
-const statusLabel=s=>s==="DELIVERING"?"DELIVERY":s;
-function deadlineText(o){if(o.deadline_state==="OVERDUE")return `${Math.abs(Math.round(o.minutes_to_target||0))} mnt terlambat`;if(o.deadline_state==="DUE_SOON")return `${Math.max(0,Math.round(o.minutes_to_target||0))} mnt lagi`;if(o.deadline_state==="NO_TARGET")return "Tanpa target";return fmt(o.requested_finish_at)}
-function agingText(m){if(m==null)return "";if(m<60)return `${Math.max(0,Math.round(m))} mnt menunggu`;const h=Math.floor(m/60),min=Math.round(m%60);return `${h}j ${min}m menunggu`}
+const rp = (v) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(v) || 0);
+const fmt = (v) => v ? new Date(v).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+const STATUS_OPTIONS = ["ALL", "NEW", "RECEIVED", "WASHING", "READY", "PICKED_UP", "DELIVERING", "COMPLETE"];
+const CLOSED_STATUSES = ["COMPLETE", "CANCELLED"];
+const STATUS_FLOW = {
+  NEW: ["RECEIVED"], RECEIVED: ["WASHING"], WASHING: ["READY"], DRYING: ["READY"], IRONING: ["READY"],
+  READY: ["PICKED_UP", "DELIVERING"], PICKED_UP: ["COMPLETE"], DELIVERING: ["COMPLETE"], COMPLETE: [], CANCELLED: [],
+};
+const QUICK_NEXT = { NEW: "RECEIVED", RECEIVED: "WASHING", WASHING: "READY", DRYING: "READY", IRONING: "READY", PICKED_UP: "COMPLETE", DELIVERING: "COMPLETE" };
+const statusLabel = (s) => s === "DELIVERING" ? "DELIVERY" : s;
 
-export default function OrderListPage({onNewOrder}){
- const user=window.dayuCurrentUser;const [orders,setOrders]=useState([]),[ops,setOps]=useState({summary:{},orders:[],handover:{},exceptions:[]}),[loading,setLoading]=useState(true),[error,setError]=useState("");const [scope,setScope]=useState("ACTIVE"),[query,setQuery]=useState(""),[status,setStatus]=useState("ALL"),[payment,setPayment]=useState("ALL"),[speed,setSpeed]=useState("ALL"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[priority,setPriority]=useState("ALL"),[page,setPage]=useState(1),[handoverOpen,setHandoverOpen]=useState(false);const pageSize=10;
- async function load({silent=false}={}){if(!silent)setLoading(true);setError("");try{const [a,b]=await Promise.all([fetch("/api/orders-list-v2"),fetch("/api/operational-control-v1")]);const [ad,bd]=await Promise.all([a.json(),b.json()]);if(!a.ok)throw new Error(ad.detail||"Gagal mengambil order");if(!b.ok)throw new Error(bd.detail||"Gagal mengambil kontrol operasional");setOrders(Array.isArray(ad)?ad:[]);setOps(bd||{summary:{},orders:[],handover:{},exceptions:[]})}catch(e){setError(e.message||"Gagal mengambil data order")}finally{if(!silent)setLoading(false)}}
- useEffect(()=>{load();const r=()=>load({silent:true});window.addEventListener("dayu:orders-changed",r);const t=setInterval(r,60000);return()=>{window.removeEventListener("dayu:orders-changed",r);clearInterval(t)}},[]);
- const opsMap=useMemo(()=>Object.fromEntries((ops.orders||[]).map(o=>[o.order_number,o])),[ops]);
- useEffect(()=>{setPage(1)},[scope,query,status,payment,speed,dateFrom,dateTo,priority]);
- const scopedOrders=useMemo(()=>orders.filter(o=>scope==="ALL"?true:scope==="HISTORY"?CLOSED_STATUSES.includes(o.status):!CLOSED_STATUSES.includes(o.status)),[orders,scope]);
- const filtered=useMemo(()=>{const q=query.trim().toLowerCase();return scopedOrders.filter(o=>{const m=opsMap[o.order_number];const hay=[o.order_number,o.customer,o.phone,o.hotel_name,o.room_number].filter(Boolean).join(" ").toLowerCase();if(q&&!hay.includes(q))return false;if(status!=="ALL"&&o.status!==status)return false;if(payment!=="ALL"&&o.payment_status!==payment)return false;if(speed!=="ALL"&&o.service_speed!==speed)return false;if(dateFrom||dateTo){const d=o.created_at?new Date(o.created_at):null;if(!d||Number.isNaN(d.getTime()))return false;if(dateFrom&&d<new Date(`${dateFrom}T00:00:00`))return false;if(dateTo&&d>new Date(`${dateTo}T23:59:59`))return false;}if(priority==="OVERDUE"&&m?.deadline_state!=="OVERDUE")return false;if(priority==="DUE_SOON"&&m?.deadline_state!=="DUE_SOON")return false;if(priority==="READY"&&o.status!=="READY")return false;if(priority==="READY_AGING"&&!(o.status==="READY"&&(m?.ready_age_minutes||0)>=120))return false;if(priority==="UNPAID"&&o.payment_status==="PAID")return false;if(priority==="EXPRESS"&&o.service_speed!=="EXPRESS")return false;if(priority==="EXCEPTION"&&!m?.needs_attention)return false;return true})},[scopedOrders,opsMap,query,status,payment,speed,dateFrom,dateTo,priority]);
- const totals=useMemo(()=>({totalValue:filtered.reduce((s,o)=>s+Number(o.total||0),0),active:filtered.filter(o=>!CLOSED_STATUSES.includes(o.status)).length,unpaid:filtered.filter(o=>o.payment_status!=="PAID").length}),[filtered]);
- const historyCount=useMemo(()=>orders.filter(o=>CLOSED_STATUSES.includes(o.status)).length,[orders]);const activeCount=orders.length-historyCount;
- const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize)),currentPage=Math.min(page,totalPages),rows=filtered.slice((currentPage-1)*pageSize,currentPage*pageSize);
- function reset(){setQuery("");setStatus("ALL");setPayment("ALL");setSpeed("ALL");setDateFrom("");setDateTo("");setPriority("ALL")}
- async function quickStatus(order,newStatus){if(!newStatus)return;try{const r=await fetch(`/api/orders/${order.order_number}/status-v2`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:newStatus,note:`Update ${statusLabel(newStatus)} dari halaman Order`,changed_by:user?.id||1})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Gagal update status");window.dispatchEvent(new CustomEvent("dayu:orders-changed"));await load({silent:true})}catch(e){setError(e.message)}}
- function handoverText(){const h=ops.handover||{};return `SERAH TERIMA SHIFT - Dayu Cleanset\nAktif: ${h.active||0}\nWashing: ${h.washing||0}\nReady: ${h.ready||0}\nPicked Up: ${h.picked_up||0}\nDelivery: ${h.delivery||0}\nTerlambat: ${h.overdue||0}\nTarget <=3 jam: ${h.due_soon||0}\nReady >2 jam: ${h.ready_over_2h||0}\nReady belum lunas: ${h.ready_unpaid||0}\nExpress: ${h.express||0}\nPerlu perhatian: ${h.exceptions||0}`}
- async function copyHandover(){try{await navigator.clipboard.writeText(handoverText());setError("")}catch{setError("Gagal copy serah terima. Silakan copy manual.")}}
- const s=ops.summary||{};const cards=[["Aktif",s.active||0,"ALL"],["Terlambat",s.overdue||0,"OVERDUE"],["≤ 3 Jam",s.due_soon||0,"DUE_SOON"],["Siap Pickup",s.ready||0,"READY"],["Ready >2j",s.ready_over_2h||0,"READY_AGING"],["Belum Lunas",s.unpaid||0,"UNPAID"],["Express",s.express||0,"EXPRESS"],["Perlu Perhatian",s.exceptions||0,"EXCEPTION"]];
- return <div className="order-list-page"><header className="order-page-header"><div><h1>Order</h1><p>Pusat order, SLA, prioritas kerja dan tindak lanjut laundry.</p></div><div className="order-header-actions"><button type="button" className="order-reset-button" onClick={()=>setHandoverOpen(v=>!v)}>Serah Terima</button><button type="button" className="order-reset-button" onClick={()=>load()}>↻ Refresh</button><button className="order-new-button" type="button" onClick={onNewOrder}>+ Order Baru</button></div></header>
- <div className="order-scope-tabs"><button className={scope==="ACTIVE"?"active":""} onClick={()=>{setScope("ACTIVE");setPriority("ALL")}}>Order Aktif <span>{activeCount}</span></button><button className={scope==="HISTORY"?"active":""} onClick={()=>{setScope("HISTORY");setPriority("ALL")}}>Riwayat <span>{historyCount}</span></button><button className={scope==="ALL"?"active":""} onClick={()=>{setScope("ALL");setPriority("ALL")}}>Semua <span>{orders.length}</span></button></div>
- {handoverOpen&&<section className="handover-panel"><div><h3>Ringkasan Serah Terima Shift</h3><p>Ringkasan otomatis kondisi order aktif saat ini.</p></div><div className="handover-grid"><span>Washing <b>{ops.handover?.washing||0}</b></span><span>Ready <b>{ops.handover?.ready||0}</b></span><span>Pickup <b>{ops.handover?.picked_up||0}</b></span><span>Delivery <b>{ops.handover?.delivery||0}</b></span><span>Terlambat <b>{ops.handover?.overdue||0}</b></span><span>Exception <b>{ops.handover?.exceptions||0}</b></span></div><button className="order-reset-button" onClick={copyHandover}>Copy Ringkasan</button></section>}
- {scope!=="HISTORY"&&<div className="ops-stats order-ops-stats">{cards.map(([label,val,key])=><button key={key} className={priority===key?"active":""} onClick={()=>{setScope("ACTIVE");setPriority(key)}}><span>{label}</span><strong>{val}</strong></button>)}</div>}
- <section className="order-stats"><div><span>Total hasil</span><strong>{filtered.length}</strong></div><div><span>Laundry aktif</span><strong>{totals.active}</strong></div><div><span>Belum lunas</span><strong>{totals.unpaid}</strong></div><div><span>Nilai order</span><strong>{rp(totals.totalValue)}</strong></div></section>
- <section className="order-panel"><div className="order-filter-grid"><label className="order-search-field"><span>Cari</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="No. order, customer, HP, hotel, room..."/></label><label><span>Status Laundry</span><select value={status} onChange={e=>setStatus(e.target.value)}>{STATUS_OPTIONS.map(x=><option key={x} value={x}>{x==="ALL"?"Semua Status":statusLabel(x)}</option>)}</select></label><label><span>Pembayaran</span><select value={payment} onChange={e=>setPayment(e.target.value)}><option value="ALL">Semua Pembayaran</option><option value="UNPAID">UNPAID</option><option value="PARTIAL">PARTIAL</option><option value="PAID">PAID</option></select></label><label><span>Service</span><select value={speed} onChange={e=>setSpeed(e.target.value)}><option value="ALL">Semua Service</option><option>NORMAL</option><option>EXPRESS</option></select></label><label><span>Dari Tanggal</span><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/></label><label><span>Sampai Tanggal</span><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></label><button type="button" className="order-reset-button" onClick={reset}>Reset Filter</button></div>{error&&<div className="order-error">{error}</div>}{loading?<div className="order-loading">Memuat order...</div>:<><div className="order-table-wrap"><table className="order-full-table order-control-table"><thead><tr><th>Prioritas</th><th>Order / Customer</th><th>Lokasi</th><th>Service</th><th>Status</th><th>Target / Aging</th><th>Pembayaran</th><th>Total</th><th>Aksi Cepat</th></tr></thead><tbody>{rows.map(o=>{const m=opsMap[o.order_number]||{};const closed=CLOSED_STATUSES.includes(o.status);const allowed=STATUS_FLOW[o.status]||[];const blocked=o.payment_status!=="PAID"&&["READY","PICKED_UP","DELIVERING"].includes(o.status);return <tr key={o.order_number} className={`ops-row ${String(m.deadline_state||"").toLowerCase()} ${m.needs_attention?"attention-row":""} ${closed?"order-closed-row":""}`}><td><div className="priority-stack">{!closed&&o.service_speed==="EXPRESS"&&<span className="priority express">EXPRESS</span>}{!closed&&m.deadline_state&&<span className={`priority ${String(m.deadline_state).toLowerCase()}`}>{m.deadline_state==="OVERDUE"?"TERLAMBAT":m.deadline_state==="DUE_SOON"?"SEGERA":m.deadline_state==="NO_TARGET"?"NO TARGET":"ON TRACK"}</span>}{m.escalations?.includes("READY_AGING")&&<span className="priority aging">READY LAMA</span>}{closed&&<span className="priority archived">RIWAYAT</span>}</div></td><td><OrderDetailTrigger orderNumber={o.order_number} onChanged={()=>load({silent:true})}/><small>{o.customer||"-"} · {o.phone||""}</small></td><td>{o.hotel_name||"-"}<small>{o.room_number?`Kamar ${o.room_number}`:""}</small></td><td>{o.service_speed||"-"}<small>{Number(o.total_weight||0)} KG</small></td><td><span className={`order-pill status-${String(o.status||"").toLowerCase()}`}>{statusLabel(o.status)}</span></td><td><strong className={!closed&&m.deadline_state==="OVERDUE"?"deadline-bad":!closed&&m.deadline_state==="DUE_SOON"?"deadline-warn":""}>{closed?fmt(o.requested_finish_at):m.deadline_state?deadlineText(m):fmt(o.requested_finish_at)}</strong>{o.status==="READY"&&m.ready_age_minutes!=null&&<small className={(m.ready_age_minutes||0)>=120?"aging-bad":""}>{agingText(m.ready_age_minutes)}</small>}</td><td><span className={`order-pill payment-${String(o.payment_status||"").toLowerCase()}`}>{o.payment_status}</span>{blocked&&<small className="payment-warning">Lunasi sebelum serah</small>}</td><td><strong>{rp(o.total)}</strong></td><td>{closed||allowed.length===0?<span className="status-final-label">Status final</span>:blocked?<span className="status-blocked-label">Lunasi dulu</span>:<div className="quick-actions">{QUICK_NEXT[o.status]&&<button onClick={()=>quickStatus(o,QUICK_NEXT[o.status])}>→ {statusLabel(QUICK_NEXT[o.status])}</button>}<select value="" onChange={e=>quickStatus(o,e.target.value)}><option value="">Status berikutnya...</option>{allowed.map(x=><option key={x} value={x}>{statusLabel(x)}</option>)}</select></div>}</td></tr>})}{!rows.length&&<tr><td colSpan="9" className="order-empty">{scope==="ACTIVE"?"Tidak ada order aktif yang cocok dengan filter.":scope==="HISTORY"?"Belum ada order di riwayat.":"Tidak ada order yang cocok dengan filter."}</td></tr>}</tbody></table></div><div className="order-pagination"><span>Menampilkan {filtered.length===0?0:(currentPage-1)*pageSize+1} - {Math.min(currentPage*pageSize,filtered.length)} dari {filtered.length} order</span><div><button disabled={currentPage<=1} onClick={()=>setPage(v=>Math.max(1,v-1))}>← Sebelumnya</button><strong>{currentPage} / {totalPages}</strong><button disabled={currentPage>=totalPages} onClick={()=>setPage(v=>Math.min(totalPages,v+1))}>Berikutnya →</button></div></div></>}</section></div>
+function deadlineText(o) {
+  if (o.deadline_state === "OVERDUE") return `${Math.abs(Math.round(o.minutes_to_target || 0))} mnt terlambat`;
+  if (o.deadline_state === "DUE_SOON") return `${Math.max(0, Math.round(o.minutes_to_target || 0))} mnt lagi`;
+  if (o.deadline_state === "NO_TARGET") return "Tanpa target";
+  return fmt(o.requested_finish_at);
+}
+function agingText(m) {
+  if (m == null) return "";
+  if (m < 60) return `${Math.max(0, Math.round(m))} mnt menunggu`;
+  const h = Math.floor(m / 60), min = Math.round(m % 60);
+  return `${h}j ${min}m menunggu`;
+}
+
+export default function OrderListPage({ onNewOrder }) {
+  const user = window.dayuCurrentUser;
+  const [orders, setOrders] = useState([]);
+  const [ops, setOps] = useState({ summary: {}, orders: [], handover: {}, exceptions: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [scope, setScope] = useState("ACTIVE");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [payment, setPayment] = useState("ALL");
+  const [speed, setSpeed] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [priority, setPriority] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const pageSize = 10;
+
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      const [a, b] = await Promise.all([fetch("/api/orders-list-v2"), fetch("/api/operational-control-v1")]);
+      const [ad, bd] = await Promise.all([a.json(), b.json()]);
+      if (!a.ok) throw new Error(ad.detail || "Gagal mengambil order");
+      if (!b.ok) throw new Error(bd.detail || "Gagal mengambil kontrol operasional");
+      setOrders(Array.isArray(ad) ? ad : []);
+      setOps(bd || { summary: {}, orders: [], handover: {}, exceptions: [] });
+    } catch (e) { setError(e.message || "Gagal mengambil data order"); }
+    finally { if (!silent) setLoading(false); }
+  }
+
+  useEffect(() => {
+    load();
+    const refresh = () => load({ silent: true });
+    window.addEventListener("dayu:orders-changed", refresh);
+    const timer = setInterval(refresh, 60000);
+    return () => { window.removeEventListener("dayu:orders-changed", refresh); clearInterval(timer); };
+  }, []);
+
+  const opsMap = useMemo(() => Object.fromEntries((ops.orders || []).map(o => [o.order_number, o])), [ops]);
+  useEffect(() => { setPage(1); }, [scope, query, status, payment, speed, dateFrom, dateTo, priority]);
+
+  const scopedOrders = useMemo(() => orders.filter(o => scope === "ALL" ? true : scope === "HISTORY" ? CLOSED_STATUSES.includes(o.status) : !CLOSED_STATUSES.includes(o.status)), [orders, scope]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return scopedOrders.filter(o => {
+      const m = opsMap[o.order_number];
+      const hay = [o.order_number, o.customer, o.phone, o.hotel_name, o.room_number].filter(Boolean).join(" ").toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (status !== "ALL" && o.status !== status) return false;
+      if (payment !== "ALL" && o.payment_status !== payment) return false;
+      if (speed !== "ALL" && o.service_speed !== speed) return false;
+      if (dateFrom || dateTo) {
+        const d = o.created_at ? new Date(o.created_at) : null;
+        if (!d || Number.isNaN(d.getTime())) return false;
+        if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
+        if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false;
+      }
+      if (priority === "OVERDUE" && m?.deadline_state !== "OVERDUE") return false;
+      if (priority === "DUE_SOON" && m?.deadline_state !== "DUE_SOON") return false;
+      if (priority === "READY" && o.status !== "READY") return false;
+      if (priority === "READY_AGING" && !(o.status === "READY" && (m?.ready_age_minutes || 0) >= 120)) return false;
+      if (priority === "UNPAID" && o.payment_status === "PAID") return false;
+      if (priority === "EXPRESS" && o.service_speed !== "EXPRESS") return false;
+      if (priority === "EXCEPTION" && !m?.needs_attention) return false;
+      if (priority === "CONTACT_DUE" && !m?.needs_customer_contact) return false;
+      return true;
+    });
+  }, [scopedOrders, opsMap, query, status, payment, speed, dateFrom, dateTo, priority]);
+
+  const totals = useMemo(() => ({
+    totalValue: filtered.reduce((s, o) => s + Number(o.total || 0), 0),
+    active: filtered.filter(o => !CLOSED_STATUSES.includes(o.status)).length,
+    unpaid: filtered.filter(o => o.payment_status !== "PAID").length,
+  }), [filtered]);
+  const historyCount = useMemo(() => orders.filter(o => CLOSED_STATUSES.includes(o.status)).length, [orders]);
+  const activeCount = orders.length - historyCount;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const rows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function reset() {
+    setQuery(""); setStatus("ALL"); setPayment("ALL"); setSpeed("ALL"); setDateFrom(""); setDateTo(""); setPriority("ALL");
+  }
+  async function quickStatus(order, newStatus) {
+    if (!newStatus) return;
+    try {
+      const r = await fetch(`/api/orders/${order.order_number}/status-v2`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, note: `Update ${statusLabel(newStatus)} dari halaman Order`, changed_by: user?.id || 1 }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Gagal update status");
+      window.dispatchEvent(new CustomEvent("dayu:orders-changed"));
+      await load({ silent: true });
+    } catch (e) { setError(e.message); }
+  }
+  function handoverText() {
+    const h = ops.handover || {};
+    return `SERAH TERIMA SHIFT - Dayu Cleanest Laundry\nAktif: ${h.active || 0}\nWashing: ${h.washing || 0}\nReady: ${h.ready || 0}\nPicked Up: ${h.picked_up || 0}\nDelivery: ${h.delivery || 0}\nTerlambat: ${h.overdue || 0}\nTarget <=3 jam: ${h.due_soon || 0}\nReady >2 jam: ${h.ready_over_2h || 0}\nReady belum lunas: ${h.ready_unpaid || 0}\nPerlu hubungi customer: ${h.customer_contact_due || 0}\nExpress: ${h.express || 0}\nPerlu perhatian: ${h.exceptions || 0}`;
+  }
+  async function copyHandover() {
+    try { await navigator.clipboard.writeText(handoverText()); setError(""); }
+    catch { setError("Gagal copy serah terima. Silakan copy manual."); }
+  }
+
+  const s = ops.summary || {};
+  const cards = [
+    ["Aktif", s.active || 0, "ALL"], ["Terlambat", s.overdue || 0, "OVERDUE"], ["≤ 3 Jam", s.due_soon || 0, "DUE_SOON"],
+    ["Siap Pickup", s.ready || 0, "READY"], ["Ready >2j", s.ready_over_2h || 0, "READY_AGING"], ["Belum Lunas", s.unpaid || 0, "UNPAID"],
+    ["Hubungi Customer", s.customer_contact_due || 0, "CONTACT_DUE"], ["Express", s.express || 0, "EXPRESS"], ["Perlu Perhatian", s.exceptions || 0, "EXCEPTION"],
+  ];
+
+  return <div className="order-list-page">
+    <header className="order-page-header"><div><h1>Order</h1><p>Pusat order, SLA, komunikasi customer dan tindak lanjut laundry.</p></div><div className="order-header-actions"><button type="button" className="order-reset-button" onClick={() => setHandoverOpen(v => !v)}>Serah Terima</button><button type="button" className="order-reset-button" onClick={() => load()}>↻ Refresh</button><button className="order-new-button" type="button" onClick={onNewOrder}>+ Order Baru</button></div></header>
+
+    <div className="order-scope-tabs"><button className={scope === "ACTIVE" ? "active" : ""} onClick={() => { setScope("ACTIVE"); setPriority("ALL"); }}>Order Aktif <span>{activeCount}</span></button><button className={scope === "HISTORY" ? "active" : ""} onClick={() => { setScope("HISTORY"); setPriority("ALL"); }}>Riwayat <span>{historyCount}</span></button><button className={scope === "ALL" ? "active" : ""} onClick={() => { setScope("ALL"); setPriority("ALL"); }}>Semua <span>{orders.length}</span></button></div>
+
+    {handoverOpen && <section className="handover-panel"><div><h3>Ringkasan Serah Terima Shift</h3><p>Ringkasan otomatis kondisi order aktif saat ini.</p></div><div className="handover-grid"><span>Washing <b>{ops.handover?.washing || 0}</b></span><span>Ready <b>{ops.handover?.ready || 0}</b></span><span>Pickup <b>{ops.handover?.picked_up || 0}</b></span><span>Delivery <b>{ops.handover?.delivery || 0}</b></span><span>Terlambat <b>{ops.handover?.overdue || 0}</b></span><span>Hubungi <b>{ops.handover?.customer_contact_due || 0}</b></span><span>Exception <b>{ops.handover?.exceptions || 0}</b></span></div><button className="order-reset-button" onClick={copyHandover}>Copy Ringkasan</button></section>}
+
+    {scope !== "HISTORY" && <div className="ops-stats order-ops-stats">{cards.map(([label, val, key]) => <button key={key} className={priority === key ? "active" : ""} onClick={() => { setScope("ACTIVE"); setPriority(key); }}><span>{label}</span><strong>{val}</strong></button>)}</div>}
+
+    <section className="order-stats"><div><span>Total hasil</span><strong>{filtered.length}</strong></div><div><span>Laundry aktif</span><strong>{totals.active}</strong></div><div><span>Belum lunas</span><strong>{totals.unpaid}</strong></div><div><span>Nilai order</span><strong>{rp(totals.totalValue)}</strong></div></section>
+
+    <section className="order-panel">
+      <div className="order-filter-grid"><label className="order-search-field"><span>Cari</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="No. order, customer, HP, hotel, room..." /></label><label><span>Status Laundry</span><select value={status} onChange={e => setStatus(e.target.value)}>{STATUS_OPTIONS.map(x => <option key={x} value={x}>{x === "ALL" ? "Semua Status" : statusLabel(x)}</option>)}</select></label><label><span>Pembayaran</span><select value={payment} onChange={e => setPayment(e.target.value)}><option value="ALL">Semua Pembayaran</option><option value="UNPAID">UNPAID</option><option value="PARTIAL">PARTIAL</option><option value="PAID">PAID</option></select></label><label><span>Service</span><select value={speed} onChange={e => setSpeed(e.target.value)}><option value="ALL">Semua Service</option><option>NORMAL</option><option>EXPRESS</option></select></label><label><span>Dari Tanggal</span><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></label><label><span>Sampai Tanggal</span><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} /></label><button type="button" className="order-reset-button" onClick={reset}>Reset Filter</button></div>
+      {error && <div className="order-error">{error}</div>}
+      {loading ? <div className="order-loading">Memuat order...</div> : <>
+        <div className="order-table-wrap"><table className="order-full-table order-control-table"><thead><tr><th>Prioritas</th><th>Order / Customer</th><th>Lokasi</th><th>Service</th><th>Status</th><th>Target / Aging</th><th>Pembayaran</th><th>Total</th><th>Aksi Cepat</th></tr></thead><tbody>
+          {rows.map(o => {
+            const m = opsMap[o.order_number] || {};
+            const closed = CLOSED_STATUSES.includes(o.status);
+            const allowed = STATUS_FLOW[o.status] || [];
+            const blocked = o.payment_status !== "PAID" && ["READY", "PICKED_UP", "DELIVERING"].includes(o.status);
+            return <tr key={o.order_number} className={`ops-row ${String(m.deadline_state || "").toLowerCase()} ${m.needs_attention ? "attention-row" : ""} ${closed ? "order-closed-row" : ""}`}>
+              <td><div className="priority-stack">{!closed && o.service_speed === "EXPRESS" && <span className="priority express">EXPRESS</span>}{!closed && m.deadline_state && <span className={`priority ${String(m.deadline_state).toLowerCase()}`}>{m.deadline_state === "OVERDUE" ? "TERLAMBAT" : m.deadline_state === "DUE_SOON" ? "SEGERA" : m.deadline_state === "NO_TARGET" ? "NO TARGET" : "ON TRACK"}</span>}{m.escalations?.includes("READY_AGING") && <span className="priority aging">READY LAMA</span>}{m.needs_customer_contact && <span className="priority contact-due">HUBUNGI</span>}{closed && <span className="priority archived">RIWAYAT</span>}</div></td>
+              <td><OrderDetailTrigger orderNumber={o.order_number} onChanged={() => load({ silent: true })} /><small>{o.customer || "-"} · {o.phone || ""}</small><CustomerCommunicationTrigger compact orderNumber={o.order_number} onChanged={() => load({ silent: true })} /></td>
+              <td>{o.hotel_name || "-"}<small>{o.room_number ? `Kamar ${o.room_number}` : ""}</small></td>
+              <td>{o.service_speed || "-"}<small>{Number(o.total_weight || 0)} KG</small></td>
+              <td><span className={`order-pill status-${String(o.status || "").toLowerCase()}`}>{statusLabel(o.status)}</span></td>
+              <td><strong className={!closed && m.deadline_state === "OVERDUE" ? "deadline-bad" : !closed && m.deadline_state === "DUE_SOON" ? "deadline-warn" : ""}>{closed ? fmt(o.requested_finish_at) : m.deadline_state ? deadlineText(m) : fmt(o.requested_finish_at)}</strong>{o.status === "READY" && m.ready_age_minutes != null && <small className={(m.ready_age_minutes || 0) >= 120 ? "aging-bad" : ""}>{agingText(m.ready_age_minutes)}</small>}{m.last_contact_at && <small>Kontak: {fmt(m.last_contact_at)}</small>}</td>
+              <td><span className={`order-pill payment-${String(o.payment_status || "").toLowerCase()}`}>{o.payment_status}</span>{blocked && <small className="payment-warning">Lunasi sebelum serah</small>}</td>
+              <td><strong>{rp(o.total)}</strong></td>
+              <td>{closed || allowed.length === 0 ? <span className="status-final-label">Status final</span> : blocked ? <span className="status-blocked-label">Lunasi dulu</span> : <div className="quick-actions">{QUICK_NEXT[o.status] && <button onClick={() => quickStatus(o, QUICK_NEXT[o.status])}>→ {statusLabel(QUICK_NEXT[o.status])}</button>}<select value="" onChange={e => quickStatus(o, e.target.value)}><option value="">Status berikutnya...</option>{allowed.map(x => <option key={x} value={x}>{statusLabel(x)}</option>)}</select></div>}</td>
+            </tr>;
+          })}
+          {!rows.length && <tr><td colSpan="9" className="order-empty">{scope === "ACTIVE" ? "Tidak ada order aktif yang cocok dengan filter." : scope === "HISTORY" ? "Belum ada order di riwayat." : "Tidak ada order yang cocok dengan filter."}</td></tr>}
+        </tbody></table></div>
+        <div className="order-pagination"><span>Menampilkan {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, filtered.length)} dari {filtered.length} order</span><div><button disabled={currentPage <= 1} onClick={() => setPage(v => Math.max(1, v - 1))}>← Sebelumnya</button><strong>{currentPage} / {totalPages}</strong><button disabled={currentPage >= totalPages} onClick={() => setPage(v => Math.min(totalPages, v + 1))}>Berikutnya →</button></div></div>
+      </>}
+    </section>
+  </div>;
 }
